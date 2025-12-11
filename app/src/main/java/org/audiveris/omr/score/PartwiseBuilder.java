@@ -322,6 +322,9 @@ public class PartwiseBuilder
     /** Factory for ProxyMusic entities. */
     private final ObjectFactory factory = new ObjectFactory();
 
+    /** Sequence of hit boxes, aligned on the exported note order. */
+    private final List<Rectangle> noteHitBoxes = new ArrayList<>();
+
     //~ Constructors -------------------------------------------------------------------------------
 
     /**
@@ -2222,6 +2225,8 @@ public class PartwiseBuilder
     //-------------//
     private void processNote (AbstractNoteInter note)
     {
+        recordNoteHitBox(note);
+
         try {
             if (note.isVip()) {
                 logger.info("VIP Visiting {}", note);
@@ -2609,6 +2614,24 @@ public class PartwiseBuilder
 
         // Safer...
         current.endNote();
+    }
+
+    //-------------------//
+    // recordNoteHitBox //
+    //-------------------//
+    private void recordNoteHitBox (AbstractNoteInter note)
+    {
+        Rectangle hitBox = null;
+
+        if (note instanceof HeadInter) {
+            Rectangle bounds = ((HeadInter) note).getBounds();
+
+            if (bounds != null) {
+                hitBox = new Rectangle(bounds);
+            }
+        }
+
+        noteHitBoxes.add(hitBox);
     }
 
     //-----------------//
@@ -3471,13 +3494,30 @@ public class PartwiseBuilder
     public static ScorePartwise build (Score score)
         throws InterruptedException, ExecutionException
     {
+        return buildResult(score).scorePartwise();
+    }
+
+    //------------//
+    // buildResult//
+    //------------//
+    public static Result buildResult (Score score)
+        throws InterruptedException, ExecutionException
+    {
         Objects.requireNonNull(score, "Trying to export a null score");
 
         final PartwiseBuilder builder = new PartwiseBuilder(score);
 
         builder.processScore();
 
-        return builder.scorePartwise;
+        return new Result(builder.scorePartwise, builder.snapshotHitBoxes());
+    }
+
+    //---------------//
+    // snapshotHitBoxes //
+    //---------------//
+    private List<Rectangle> snapshotHitBoxes ()
+    {
+        return Collections.unmodifiableList(new ArrayList<>(noteHitBoxes));
     }
 
     //---------//
@@ -3491,6 +3531,32 @@ public class PartwiseBuilder
     }
 
     //~ Inner Classes ------------------------------------------------------------------------------
+
+    //---------//
+    // Result  //
+    //---------//
+    public static final class Result
+    {
+        private final ScorePartwise scorePartwise;
+        private final List<Rectangle> noteHitBoxes;
+
+        private Result (ScorePartwise scorePartwise,
+                        List<Rectangle> noteHitBoxes)
+        {
+            this.scorePartwise = scorePartwise;
+            this.noteHitBoxes = noteHitBoxes;
+        }
+
+        public ScorePartwise scorePartwise ()
+        {
+            return scorePartwise;
+        }
+
+        public List<Rectangle> noteHitBoxes ()
+        {
+            return noteHitBoxes;
+        }
+    }
 
     //---------------//
     // ClefIterators //

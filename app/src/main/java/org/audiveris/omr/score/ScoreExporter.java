@@ -22,6 +22,8 @@
 package org.audiveris.omr.score;
 
 import org.audiveris.omr.OMR;
+import org.audiveris.omr.score.PartwiseBuilder.Result;
+import org.audiveris.omr.util.CustomXMLStreamWriter;
 import org.audiveris.proxymusic.ScorePartwise;
 import org.audiveris.proxymusic.mxl.Mxl;
 import org.audiveris.proxymusic.mxl.RootFile;
@@ -32,10 +34,19 @@ import org.slf4j.LoggerFactory;
 
 import org.w3c.dom.Node;
 
+import jakarta.xml.bind.JAXBContext;
+import jakarta.xml.bind.Marshaller;
+
+import java.awt.Rectangle;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.List;
+
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamWriter;
 
 /**
  * Class <code>ScoreExporter</code> exports the provided score to a MusicXML file, stream or
@@ -48,6 +59,9 @@ public class ScoreExporter
     //~ Static fields/initializers -----------------------------------------------------------------
 
     private static final Logger logger = LoggerFactory.getLogger(ScoreExporter.class);
+
+    private static final String HITBOX_NAMESPACE = "http://audiveris.org/omr-data";
+    private static final String HITBOX_PREFIX = "omr";
 
     //~ Instance fields ----------------------------------------------------------------------------
 
@@ -118,8 +132,10 @@ public class ScoreExporter
     {
         Objects.requireNonNull(os, "Trying to export a score to a null output stream");
 
-        // Build the ScorePartwise proxy
-        ScorePartwise scorePartwise = PartwiseBuilder.build(score);
+        // Build the ScorePartwise proxy together with note hit boxes
+        Result buildResult = PartwiseBuilder.buildResult(score);
+        ScorePartwise scorePartwise = buildResult.scorePartwise();
+        List<Rectangle> noteHitBoxes = buildResult.noteHitBoxes();
 
         // Marshal the proxy
         if (compressed) {
@@ -132,11 +148,11 @@ public class ScoreExporter
 
             mof.addEntry(
                     new RootFile(scoreName + OMR.SCORE_EXTENSION, RootFile.MUSICXML_MEDIA_TYPE));
-            Marshalling.marshal(scorePartwise, zos, signed, 2);
+            marshalScore(zos, scorePartwise, signed, noteHitBoxes);
             mof.close();
         } else {
             try (os) {
-                Marshalling.marshal(scorePartwise, os, signed, 2);
+                marshalScore(os, scorePartwise, signed, noteHitBoxes);
             }
         }
     }
@@ -162,6 +178,50 @@ public class ScoreExporter
         try (OutputStream os = new FileOutputStream(path.toString())) {
             export(os, signed, scoreName, compressed);
             logger.info("Score {} exported to {}", scoreName, path);
+        }
+    }
+
+    //--------------//
+    // marshalScore //
+    //--------------//
+    private void marshalScore (OutputStream os,
+                               ScorePartwise scorePartwise,
+                               boolean signed,
+                               List<Rectangle> noteHitBoxes)
+        throws Exception
+    {
+        annotateScore(scorePartwise, signed);
+
+        JAXBContext context = Marshalling.getContext(ScorePartwise.class);
+        Marshaller marshaller = context.createMarshaller();
+        marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
+
+        XMLStreamWriter baseWriter = XMLOutputFactory.newInstance().createXMLStreamWriter(os, "UTF-8");
+        CustomXMLStreamWriter writer = new CustomXMLStreamWriter(
+                baseWriter,
+                "  ",
+                noteHitBoxes,
+                HITBOX_PREFIX,
+                HITBOX_NAMESPACE);
+        marshaller.marshal(scorePartwise, writer);
+        writer.flush();
+    }
+
+    //---------------//
+    // annotateScore //
+    //---------------//
+    private void annotateScore (ScorePartwise scorePartwise,
+                                boolean signed)
+    {
+        try {
+            Method method = Marshalling.class.getDeclaredMethod(
+                    "annotate",
+                    ScorePartwise.class,
+                    boolean.class);
+            method.setAccessible(true);
+            method.invoke(null, scorePartwise, signed);
+        } catch (ReflectiveOperationException ex) {
+            logger.warn("Unable to annotate score before exporting", ex);
         }
     }
 }

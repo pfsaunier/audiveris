@@ -21,6 +21,7 @@
 // </editor-fold>
 package org.audiveris.omr.util;
 
+import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -77,6 +78,24 @@ public class CustomXMLStreamWriter
      */
     protected List<Item> items = new ArrayList<>();
 
+    /** Optional sequence of hit boxes aligned with successive note elements. */
+    private final List<Rectangle> noteHitBoxes;
+
+    /** Prefix used for custom namespace insertion. */
+    private final String hitboxPrefix;
+
+    /** Namespace used for custom insertion. */
+    private final String hitboxNamespace;
+
+    /** Do we have any hit box to export? */
+    private final boolean hasHitboxData;
+
+    /** Has the namespace already been declared in the document? */
+    private boolean hitboxNamespaceDeclared;
+
+    /** Index of the next note to annotate. */
+    private int noteIndex;
+
     //~ Constructors -------------------------------------------------------------------------------
 
     /**
@@ -100,8 +119,32 @@ public class CustomXMLStreamWriter
     public CustomXMLStreamWriter (XMLStreamWriter writer,
                                   final String indentStep)
     {
+        this(writer, indentStep, null, null, null);
+    }
+
+    /**
+     * Creates a new <code>IndentingXmlStreamWriter</code> object configured to emit
+     * additional hitbox information for note elements.
+     *
+     * @param writer          the underlying writer
+     * @param indentStep      indentation string for one step. If null, no indentation is performed.
+     * @param noteHitBoxes    sequence of note hit boxes aligned on note order
+     * @param hitboxPrefix    prefix for the custom namespace
+     * @param hitboxNamespace namespace URI for hitbox elements
+     */
+    public CustomXMLStreamWriter (XMLStreamWriter writer,
+                                  final String indentStep,
+                                  final List<Rectangle> noteHitBoxes,
+                                  final String hitboxPrefix,
+                                  final String hitboxNamespace)
+    {
         this.writer = writer;
         this.indentStep = indentStep;
+        this.noteHitBoxes = noteHitBoxes;
+        this.hitboxPrefix = hitboxPrefix;
+        this.hitboxNamespace = hitboxNamespace;
+        this.hasHitboxData = hasNonNullHitBoxes(noteHitBoxes) && (hitboxPrefix != null)
+                && (hitboxNamespace != null);
     }
 
     //~ Methods ------------------------------------------------------------------------------------
@@ -541,6 +584,7 @@ public class CustomXMLStreamWriter
         items.add( () ->
         {
             writer.writeStartElement(localName); // Start saved second
+            afterStartElement(null, localName);
 
             return null;
         });
@@ -563,6 +607,7 @@ public class CustomXMLStreamWriter
         items.add( () ->
         {
             writer.writeStartElement(namespaceURI, localName); // Start saved second
+            afterStartElement(namespaceURI, localName);
 
             return null;
         });
@@ -586,12 +631,88 @@ public class CustomXMLStreamWriter
         items.add( () ->
         {
             writer.writeStartElement(prefix, localName, namespaceURI); // Start saved second
+            afterStartElement(namespaceURI, localName);
 
             return null;
         });
     }
 
     //~ Inner Interfaces ---------------------------------------------------------------------------
+
+    //--------------------//
+    // afterStartElement //
+    //--------------------//
+    private void afterStartElement (String namespaceURI,
+                                    String localName)
+        throws XMLStreamException
+    {
+        if (hasHitboxData && !hitboxNamespaceDeclared && "score-partwise".equals(localName)) {
+            writer.writeNamespace(hitboxPrefix, hitboxNamespace);
+            hitboxNamespaceDeclared = true;
+        }
+
+        if (!hasHitboxData || !"note".equals(localName)) {
+            return;
+        }
+
+        Rectangle hitBox = nextHitBox();
+
+        if (hitBox != null) {
+            writeHitbox(hitBox);
+        }
+    }
+
+    //----------------//
+    // hasNonNullHitBoxes //
+    //----------------//
+    private static boolean hasNonNullHitBoxes (List<Rectangle> boxes)
+    {
+        if (boxes == null) {
+            return false;
+        }
+
+        for (Rectangle rect : boxes) {
+            if (rect != null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    //-------------//
+    // nextHitBox  //
+    //-------------//
+    private Rectangle nextHitBox ()
+    {
+        Rectangle hitBox = null;
+
+        if ((noteHitBoxes != null) && (noteIndex < noteHitBoxes.size())) {
+            hitBox = noteHitBoxes.get(noteIndex);
+        }
+
+        noteIndex++;
+
+        return hitBox;
+    }
+
+    //------------//
+    // writeHitbox //
+    //------------//
+    private void writeHitbox (Rectangle hitBox)
+        throws XMLStreamException
+    {
+        if (indentStep != null) {
+            doIndent();
+        }
+
+        writer.writeEmptyElement(hitboxPrefix, "hitbox", hitboxNamespace);
+        writer.writeAttribute("x", Integer.toString(hitBox.x));
+        writer.writeAttribute("y", Integer.toString(hitBox.y));
+        writer.writeAttribute("width", Integer.toString(hitBox.width));
+        writer.writeAttribute("height", Integer.toString(hitBox.height));
+        closing = false;
+    }
 
     //------//
     // Item //
