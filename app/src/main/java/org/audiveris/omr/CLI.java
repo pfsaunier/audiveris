@@ -818,11 +818,11 @@ public class CLI
                     Files.createDirectories(folder);
                 }
 
-                // In batch, log into specific log file within book folder
-                if (OMR.gui == null) {
-                    LogUtil.addAppender(book.getRadix(), folder);
-                }
-                LogUtil.start(book);
+//                // In batch, log into specific log file within book folder
+//                if (OMR.gui == null) {
+//                    LogUtil.addAppender(book.getRadix(), folder);
+//                }
+//                LogUtil.start(book);
 
                 boolean swap = (OMR.gui == null) || isSwap() || swapProcessedSheets();
 
@@ -833,11 +833,11 @@ public class CLI
                     // Save book to disk immediately (global book info)
                     final Path bookPath = BookManager.getDefaultSavePath(book);
 
-                    if (OMR.gui == null || (swap && BookActions.isTargetConfirmed(bookPath))) {
-                        book.store(bookPath, false);
-                    } else {
-                        swap = false;
-                    }
+//                    if (OMR.gui == null || (swap && BookActions.isTargetConfirmed(bookPath))) {
+//                        book.store(bookPath, false);
+//                    } else {
+//                        swap = false;
+//                    }
                 }
 
                 // Specific sheets to process?
@@ -923,22 +923,22 @@ public class CLI
                 throw new RuntimeException(ex);
             } finally {
                 // Close (when in batch mode only)
-                if (OMR.gui == null) {
-                    if (cancelled) {
-                        // Make a backup if needed, then save book "in its current status"
-                        book.store(BookManager.getDefaultSavePath(book), true);
-                    } else {
-                        book.store(BookManager.getDefaultSavePath(book), false);
-                    }
+//                if (OMR.gui == null) {
+//                    if (cancelled) {
+//                        // Make a backup if needed, then save book "in its current status"
+//                        book.store(BookManager.getDefaultSavePath(book), true);
+//                    } else {
+//                        book.store(BookManager.getDefaultSavePath(book), false);
+//                    }
+//
+//                    book.close(null);
+//                }
 
-                    book.close(null);
-                }
-
-                LogUtil.stopBook();
-
-                if (OMR.gui == null) {
-                    LogUtil.removeAppender(book.getRadix());
-                }
+//                LogUtil.stopBook();
+//
+//                if (OMR.gui == null) {
+//                    LogUtil.removeAppender(book.getRadix());
+//                }
             }
         }
     }
