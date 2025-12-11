@@ -1,6 +1,9 @@
 ![](https://github.com/Audiveris/docs/blob/master/images/SplashLogo.png)
 Logo crafted by [Katka](https://www.facebook.com/katkastreetart/)
 
+# Idée
+Utiliser l'OMR native d'Audiveris mais en y ajouter quelques features supplémentaires pour récupérer la position des notes détectées et superposer sur le pdf d'entrées des hitbox invisibles sur les notes, clickable et jouant la note correspondante. Idée : avoir une partition interactive, mais pas un lecteur complet.
+
 # Audiveris - Open-source Optical Music Recognition
 
 The goal of an OMR application is to allow the end-user to transcribe a score image into
